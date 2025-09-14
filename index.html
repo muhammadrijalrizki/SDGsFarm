@@ -1,0 +1,2176 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplikasi Saya</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Desa Hijau: Misi Daur Ulang & Bertani 3D</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;700&display=swap');
+        body {
+            font-family: 'Fredoka', sans-serif;
+            background-color: #e0f2fe;
+            color: #1e3a8a;
+            user-select: none;
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            box-sizing: border-box;
+        }
+        #farm-game {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+        }
+        .game-area {
+            position: relative;
+            width: 100%;
+            flex-grow: 1;
+            border-radius: 1.5rem;
+            box-shadow: 0 10px 15px rgba(0,0,0,0.1);
+            overflow: hidden;
+            touch-action: none;
+            background-color: #ffffff;
+        }
+        #farm-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        .btn {
+            font-weight: bold;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+            padding: 0.75rem 1.5rem;
+            border-radius: 9999px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            background-image: linear-gradient(to right, #60a5fa, #3b82f6);
+            color: #ffffff;
+            border: none;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .text-neon {
+            color: #f9a8d4;
+            text-shadow:
+                0 0 5px #f9a8d4,
+                0 0 10px #f9a8d4,
+                0 0 20px #f9a8d4,
+                0 0 40px #fce7f3;
+        }
+        .modal {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0,0,0,0.5);
+            backdrop-filter: blur(5px);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 1.5rem;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+            border: 4px solid;
+            max-width: 90%;
+            width: 400px;
+            transform: scale(0.95);
+            transition: all 0.3s;
+        }
+        .modal.active .modal-content {
+            transform: scale(1);
+        }
+        .pulse-animation {
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        .item {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            cursor: grab;
+            transition: transform 0.1s ease-out;
+            touch-action: none;
+        }
+        .item-emoji {
+            font-size: 48px;
+            line-height: 1;
+            pointer-events: none;
+        }
+        .item-name {
+            font-size: 0.75rem;
+            font-weight: bold;
+            color: #1e3a8a;
+            pointer-events: none;
+            margin-top: 4px;
+        }
+        .item.dragging {
+            transform: scale(1.2);
+            z-index: 50;
+        }
+        .bin-highlight {
+            transform: scale(1.1);
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.8), 0 0 25px rgba(255, 255, 255, 0.6);
+            border-width: 6px;
+        }
+        .bin-error {
+            animation: shake 0.5s ease-in-out;
+            border-color: #ef4444;
+            box-shadow: 0 0 15px #ef4444, 0 0 25px #ef4444;
+        }
+        .bin-correct {
+            animation: glow 0.5s ease-in-out;
+            border-color: #22c55e;
+            box-shadow: 0 0 15px #22c55e, 0 0 25px #22c55e;
+            transform: scale(1.1);
+        }
+        .open-bin {
+            animation: open-bin 0.5s ease-in-out;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-5px); }
+            40%, 80% { transform: translateX(5px); }
+        }
+        @keyframes open-bin {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1) translateY(-10px); }
+            100% { transform: scale(1); }
+        }
+        .disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background-image: none;
+            background-color: #a0a0a0;
+        }
+        .resource-display {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            padding: 0.5rem;
+        }
+        .resource-item {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            background-color: #fff;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .hidden {
+            display: none;
+        }
+
+        /* Fullscreen UI Overlays */
+        #farm-game .resource-display-overlay {
+            position: absolute;
+            top: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+        #farm-game .action-buttons-overlay {
+            position: absolute;
+            bottom: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+        #farm-game .back-btn-overlay {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            z-index: 10;
+            background-color: rgba(255, 255, 255, 0.7);
+            border-radius: 9999px;
+            padding: 0.5rem;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        /* Styles for the new well mini-game modal */
+        #well-game-3d-modal {
+            background-color: rgba(0,0,0,0.7);
+            backdrop-filter: blur(8px);
+            z-index: 150;
+        }
+        #well-game-3d-modal .modal-content {
+            background-color: #1a202c;
+            border: 4px solid #63b3ed;
+            color: #e2e8f0;
+            padding: 2rem;
+        }
+        #well-game-3d-modal .game-canvas-container {
+            width: 100%;
+            height: 300px;
+            background-color: #3b455b;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            margin-top: 1rem;
+        }
+        #well-game-3d-modal canvas {
+            width: 100% !important;
+            height: 100% !important;
+            display: block;
+        }
+        #well-game-3d-modal .score-display-well {
+            font-size: 2rem;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+            text-align: right;
+        }
+        #well-game-3d-modal .well-message-box {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(26, 32, 44, 0.9);
+            border: 2px solid #63b3ed;
+            padding: 30px 40px;
+            border-radius: 15px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            z-index: 20;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
+        }
+        #well-game-3d-modal .well-message-box h2 {
+            font-size: 2rem;
+            color: #63b3ed;
+            margin: 0;
+        }
+        #well-game-3d-modal .well-message-box p {
+            font-size: 1.2rem;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <!-- Main Menu & About/Instructions Screens -->
+    <div id="main-menu-container" class="container">
+        <h1 id="game-title" class="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-center mb-4 text-sky-700">Desa Hijau: Misi Daur Ulang & Bertani 3D</h1>
+        <p id="game-subtitle" class="text-center text-lg sm:text-xl font-medium mb-8 text-sky-800">
+            Ayo bantu Pak Tani menanam pohon dan kumpulkan sampah untuk disortir!
+        </p>
+
+        <!-- Main Menu Screen -->
+        <div id="main-menu" class="text-center space-y-4">
+            <button id="start-game-btn" class="btn w-48 pulse-animation">Mulai Bertani</button>
+            <button id="continue-game-btn" class="btn w-48 bg-gray-500" disabled>Lanjutkan Permainan</button>
+            <button id="about-btn" class="btn w-48 bg-slate-400">Tentang Game Ini</button>
+            <button id="instructions-btn" class="btn w-48 bg-slate-400">Cara Bermain</button>
+        </div>
+
+        <!-- About Screen -->
+        <div id="about" class="hidden text-center max-w-2xl mt-8">
+            <h2 class="text-3xl font-bold mb-4 text-sky-700">Tentang Game Ini</h2>
+            <p class="mb-4 text-lg">
+                Game "Desa Hijau: Misi Daur Ulang & Bertani" ini dibuat untuk memperkenalkan anak-anak pada pentingnya menjaga lingkungan, khususnya dalam hal daur ulang sampah (SDG 12) dan menanam pohon untuk melawan perubahan iklim (SDG 13).
+            </p>
+            <p class="mb-6 text-lg">
+                Setiap kali kamu berhasil mengumpulkan sampah, menanam pohon, atau menyelesaikan misi lainnya, kamu membantu Desa Hijau menjadi lebih baik. Ayo jadi pahlawan untuk bumi kita!
+            </p>
+            <button id="about-back-btn" class="btn">Kembali ke Menu Utama</button>
+        </div>
+
+        <!-- Instructions Screen -->
+        <div id="instructions" class="hidden text-center max-w-2xl mt-8">
+            <h2 class="text-3xl font-bold mb-4 text-sky-700">Cara Bermain</h2>
+            <ul class="list-disc list-inside text-left mx-auto mb-6 text-lg">
+                <li class="mb-2">Tugasmu adalah memilah sampah dan menanam pohon di lahan pertanian.</li>
+                <li class="mb-2">Di game Daur Ulang, seret sampah ke tempat sampah yang benar. Sampah organik akan diubah menjadi kompos.</li>
+                <li class="mb-2">Kunjungi pasar untuk menjual sampah anorganik dan membeli benih.</li>
+                <li class="mb-2">Pohon akan tumbuh dari bibit hingga pohon dewasa. Panen untuk mendapatkan koin!</li>
+            </ul>
+            <button id="instructions-back-btn" class="btn">Kembali ke Menu Utama</button>
+        </div>
+    </div>
+
+    <!-- Game Screens -->
+    <div id="game-screens" class="hidden w-full h-full">
+        <!-- Recycling Game Screen -->
+        <div id="recycling-game" class="hidden fixed inset-0 flex items-center justify-center modal flex-col p-4">
+            <div class="bg-blue-200 p-4 rounded-full shadow-lg mb-4 w-full max-w-sm flex justify-between items-center text-xl font-bold">
+                <div id="score-display">Koin: 0</div>
+                <div id="item-count-display">Item: 0</div>
+            </div>
+            <div class="resource-display flex flex-row gap-4 justify-center items-center">
+                <div class="resource-item flex flex-row items-center gap-1">
+                    <span class="text-xl">🍚</span> Kompos: <span id="compost-count">0</span>
+                </div>
+            </div>
+            <div id="recycling-area" class="game-area mt-4 max-w-3xl">
+                <!-- Sampah akan muncul di sini secara dinamis -->
+                <!-- Trash Bins -->
+                <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex space-x-4">
+                    <div id="organik" class="w-24 h-28 sm:w-28 sm:h-32 bg-green-500 rounded-b-xl border-4 border-green-700 shadow-lg flex items-center justify-center text-white text-xs sm:text-sm font-bold opacity-80" data-type="organik">Organik</div>
+                    <div id="anorganik" class="w-24 h-28 sm:w-28 sm:h-32 bg-yellow-500 rounded-b-xl border-4 border-yellow-700 shadow-lg flex items-center justify-center text-white text-xs sm:text-sm font-bold opacity-80" data-type="anorganik">Anorganik</div>
+                    <div id="kertas" class="w-24 h-28 sm:w-28 sm:h-32 bg-blue-500 rounded-b-xl border-4 border-blue-700 shadow-lg flex items-center justify-center text-white text-xs sm:text-sm font-bold opacity-80" data-type="kertas">Kertas</div>
+                </div>
+            </div>
+            <button id="recycling-back-btn" class="btn mt-6">Kembali ke Pertanian</button>
+        </div>
+
+        <!-- Farm Game Screen -->
+        <div id="farm-game" class="hidden flex-col items-center w-full h-full">
+            <div class="resource-display-overlay resource-display flex flex-row gap-4 justify-center items-center mb-4 pointer-events-none">
+                <div class="resource-item flex flex-row items-center gap-1">
+                    <span class="text-xl">💰</span> Koin: <span id="farm-score-display">0</span>
+                </div>
+                <div class="resource-item flex flex-row items-center gap-1">
+                    <span class="text-xl">🍚</span> Kompos: <span id="compost-count-farm">0</span>
+                </div>
+                <div class="resource-item flex flex-row items-center gap-1">
+                    <span class="text-xl">💧</span> Air: <span id="water-count-farm">0</span>
+                </div>
+                <div class="resource-item flex flex-row items-center gap-1">
+                    <span class="text-xl">🌱</span> Benih: <span id="seed-count-farm">0</span>
+                </div>
+            </div>
+            <div id="farm-area" class="game-area mt-4 flex items-center justify-center">
+                <button id="farm-back-btn-icon" class="back-btn-overlay text-xl btn px-4 py-2 pointer-events-auto">🏠</button>
+                <div id="action-buttons-overlay" class="action-buttons-overlay flex gap-4">
+                    <button id="plant-btn" class="btn pointer-events-auto" disabled>Tanam</button>
+                    <button id="water-btn" class="btn pointer-events-auto" disabled>Siram</button>
+                    <button id="fertilize-btn" class="btn pointer-events-auto" disabled>Pupuk</button>
+                    <button id="harvest-btn" class="btn pointer-events-auto" disabled>Panen!</button>
+                </div>
+                <canvas id="farm-canvas" style="width:100%; height:100%; display:block;"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Over Modal -->
+    <div id="game-over-modal" class="hidden fixed inset-0 modal">
+        <div class="modal-content border-lime-500 text-center">
+            <h2 class="text-4xl font-extrabold mb-4 text-lime-600">Kerja Bagus!</h2>
+            <p class="text-xl mb-4 font-bold text-slate-700">Skormu adalah:</p>
+            <p id="final-score" class="text-6xl font-black text-neon mb-2">0</p>
+            <div id="star-rating" class="text-5xl mb-6"></div>
+            <div class="space-y-4">
+                <button id="game-over-retry-btn" class="btn w-48">Main Lagi</button>
+                <button id="game-over-menu-btn" class="btn w-48 bg-slate-400">Menu Utama</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Marketplace Modal -->
+    <div id="marketplace-modal" class="hidden fixed inset-0 modal">
+        <div class="modal-content border-lime-500 text-center">
+            <h2 class="text-3xl font-bold mb-4 text-sky-700">Pasar Desa</h2>
+            <p class="text-lg mb-4">Jual hasil panen dan beli benih!</p>
+            <div class="space-y-4 mb-6">
+                <div class="flex justify-between items-center text-xl">
+                    <span>Benih (20 Koin):</span>
+                    <button id="buy-seed-btn" class="btn pointer-events-auto">Beli</button>
+                </div>
+            </div>
+            <p id="market-message" class="text-red-500 font-bold"></p>
+            <button id="marketplace-close-btn" class="btn w-full mt-2 bg-slate-400 pointer-events-auto">Tutup</button>
+        </div>
+    </div>
+
+    <!-- Warehouse Modal -->
+    <div id="warehouse-modal" class="hidden fixed inset-0 modal">
+        <div class="modal-content border-lime-500 text-center">
+            <h2 class="text-3xl font-bold mb-4 text-sky-700">Gudang</h2>
+            <p class="text-lg mb-4">Cek stokmu di sini:</p>
+            <div class="space-y-4 mb-6">
+                <div class="flex justify-between items-center text-xl">
+                    <span>Kompos:</span> <span id="warehouse-compost-count" class="font-bold">0</span>
+                </div>
+                <div class="flex justify-between items-center text-xl">
+                    <span>Air:</span> <span id="warehouse-water-count" class="font-bold">0</span>
+                </div>
+                <div class="flex justify-between items-center text-xl">
+                    <span>Benih:</span> <span id="warehouse-seed-count" class="font-bold">0</span>
+                </div>
+                <div class="flex justify-between items-center text-xl">
+                    <span>Sampah Anorganik:</span> <span id="warehouse-anorganik-count" class="font-bold">0</span>
+                </div>
+                <div class="flex justify-between items-center text-xl">
+                    <span>Sampah Kertas:</span> <span id="warehouse-kertas-count" class="font-bold">0</span>
+                </div>
+            </div>
+            <button id="warehouse-close-btn" class="btn w-full mt-2 bg-slate-400 pointer-events-auto">Tutup</button>
+        </div>
+    </div>
+
+    <!-- Well Mini-Game Modal -->
+    <div id="well-game-3d-modal" class="hidden fixed inset-0 modal">
+        <div class="modal-content text-center">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-3xl font-bold text-sky-400">Tarik Ember Air</h2>
+                <div class="score-display-well"><span id="well-water-score">0</span> 💧</div>
+            </div>
+            <div class="game-canvas-container" id="well-game-container">
+                <!-- Three.js Canvas for well mini-game will be appended here -->
+            </div>
+            <button id="well-back-btn" class="btn mt-4 w-full bg-slate-400">Kembali ke Pertanian</button>
+        </div>
+    </div>
+
+    <!-- Recycling Center Modal -->
+    <div id="recycling-center-modal" class="hidden fixed inset-0 modal">
+        <div class="modal-content border-blue-500 text-center">
+            <h2 class="text-3xl font-bold mb-4 text-blue-700">Pusat Daur Ulang</h2>
+            <p class="text-lg mb-4">Ubah sampah menjadi koin dan material!</p>
+            <div class="space-y-4 mb-6">
+                <div class="flex justify-between items-center text-xl">
+                    <span>Plastik & Logam:</span> <span id="recycling-anorganik-count" class="font-bold">0</span>
+                    <button id="process-anorganik-btn" class="btn">Proses</button>
+                </div>
+                <div class="flex justify-between items-center text-xl">
+                    <span>Kertas:</span> <span id="recycling-kertas-count" class="font-bold">0</span>
+                    <button id="process-kertas-btn" class="btn">Proses</button>
+                </div>
+            </div>
+            <p id="recycling-message" class="text-red-500 font-bold"></p>
+            <button id="recycling-center-close-btn" class="btn w-full mt-2 bg-slate-400">Tutup</button>
+        </div>
+    </div>
+
+    <!-- Missions Modal -->
+    <div id="missions-modal" class="hidden fixed inset-0 modal">
+        <div class="modal-content border-orange-500 text-center">
+            <h2 class="text-3xl font-bold mb-4 text-orange-700">Misi Desa</h2>
+            <p class="text-lg mb-4">Selesaikan misi untuk membantu desa!</p>
+            <div id="mission-container" class="text-left">
+                <!-- Mission content will be injected here -->
+            </div>
+            <p id="mission-message" class="text-red-500 font-bold mt-4"></p>
+            <button id="complete-mission-btn" class="btn w-full mt-4" disabled>Tandai Selesai</button>
+            <button id="missions-close-btn" class="btn w-full mt-2 bg-slate-400">Tutup</button>
+        </div>
+    </div>
+
+    <!-- Encyclopedia Modal -->
+    <div id="encyclopedia-modal" class="hidden fixed inset-0 modal">
+        <div class="modal-content border-green-500 text-center">
+            <h2 class="text-3xl font-bold mb-4 text-green-700">Ensiklopedia</h2>
+            <p class="text-lg mb-4">Pelajari lebih lanjut tentang Desa Hijau!</p>
+            <div id="encyclopedia-content" class="text-left space-y-4 overflow-y-auto max-h-[300px]">
+                <!-- Encyclopedia content will be injected here -->
+            </div>
+            <button id="encyclopedia-close-btn" class="btn w-full mt-2 bg-slate-400">Tutup</button>
+        </div>
+    </div>
+
+
+    <script>
+        // Game state variables
+        const gameContainer = document.getElementById('game-screens');
+        const mainMenuContainer = document.getElementById('main-menu-container');
+        const recyclingGame = document.getElementById('recycling-game');
+        const farmGame = document.getElementById('farm-game');
+        const marketplaceModal = document.getElementById('marketplace-modal');
+        const warehouseModal = document.getElementById('warehouse-modal');
+        const wellGame3DModal = document.getElementById('well-game-3d-modal');
+        const recyclingCenterModal = document.getElementById('recycling-center-modal');
+        const missionsModal = document.getElementById('missions-modal');
+        const encyclopediaModal = document.getElementById('encyclopedia-modal');
+
+        const scoreDisplay = document.getElementById('score-display');
+        const farmScoreDisplay = document.getElementById('farm-score-display');
+        const itemCountDisplay = document.getElementById('item-count-display');
+        const compostCountDisplay = document.getElementById('compost-count');
+        const waterCountFarmDisplay = document.getElementById('water-count-farm');
+        const compostCountFarmDisplay = document.getElementById('compost-count-farm');
+        const seedCountFarmDisplay = document.getElementById('seed-count-farm');
+        const warehouseCompostCount = document.getElementById('warehouse-compost-count');
+        const warehouseWaterCount = document.getElementById('warehouse-water-count');
+        const warehouseSeedCount = document.getElementById('warehouse-seed-count');
+        const warehouseAnorganikCount = document.getElementById('warehouse-anorganik-count');
+        const warehouseKertasCount = document.getElementById('warehouse-kertas-count');
+        const recyclingAnorganikCount = document.getElementById('recycling-anorganik-count');
+        const recyclingKertasCount = document.getElementById('recycling-kertas-count');
+        const recyclingMessage = document.getElementById('recycling-message');
+        const marketMessage = document.getElementById('market-message');
+        const recyclingArea = document.getElementById('recycling-area');
+        const bins = document.querySelectorAll('#recycling-game [data-type]');
+        const actionButtonsOverlay = document.getElementById('action-buttons-overlay');
+        const plantBtn = document.getElementById('plant-btn');
+        const waterBtn = document.getElementById('water-btn');
+        const fertilizeBtn = document.getElementById('fertilize-btn');
+        const harvestBtn = document.getElementById('harvest-btn');
+
+        let score = 0;
+        let compost = 0;
+        let water = 0;
+        let seeds = 0;
+        let anorganikItems = 0;
+        let kertasItems = 0;
+        let activePlotIndex = -1;
+        let gameRunning = false;
+        let currentItemElement = null;
+        let isDragging = false;
+        const itemSize = 80;
+        let currentMission = null;
+        let wiltingInterval;
+        const WILT_TIME = 300000; // 5 minutes
+        const SLOW_GROWTH_TIME = 120000; // 2 minutes
+        const FAST_GROWTH_TIME = 20000; // 20 seconds
+        let trashCount = 0;
+
+        // In-game encyclopedia data
+        const encyclopediaData = {
+            "Sampah Organik": "Sampah dari bahan-bahan hayati yang dapat terurai, seperti sisa makanan, daun, dan ranting. Sampah ini bisa diolah menjadi kompos.",
+            "Sampah Anorganik": "Sampah yang sulit terurai secara alami, seperti plastik dan kaleng. Sampah ini harus didaur ulang di pusat daur ulang.",
+            "Sampah Kertas": "Sampah dari produk kertas seperti kardus dan koran. Kertas dapat didaur ulang menjadi kertas baru.",
+            "Kompos": "Pupuk alami yang dibuat dari sampah organik. Penting untuk menyuburkan tanah dan membantu tanaman tumbuh.",
+            "Benih": "Biji tanaman yang bisa ditanam di ladang. Dengan air dan kompos, benih akan tumbuh menjadi pohon.",
+            "Pohon": "Sumber oksigen dan penghasil buah di game. Pohon yang dewasa bisa dipanen untuk mendapatkan koin.",
+            "Air": "Sangat penting untuk menyiram tanaman. Diperoleh dari sumur desa.",
+            "Waktu Panen": "Pohon siap panen akan memiliki warna lahan oranye dan menghasilkan buah. Tanaman yang sudah disiram akan memiliki lahan biru, dan yang sudah dipupuk akan memiliki lahan hijau. Tanaman akan layu jika tidak disiram atau diberi pupuk dalam 5 menit."
+        };
+
+        const trashItems = [
+            { type: 'organik', name: 'Sisa Makanan', emoji: '🍎', multiplier: 2 },
+            { type: 'organik', name: 'Kulit Pisang', emoji: '🍌', multiplier: 3 },
+            { type: 'kertas', name: 'Kardus', emoji: '📦', multiplier: 4 },
+            { type: 'kertas', name: 'Koran Bekas', emoji: '📰', multiplier: 5 },
+            { type: 'anorganik', name: 'Botol Plastik', emoji: '🥤', multiplier: 6 },
+            { type: 'anorganik', name: 'Kaleng', emoji: '🥫', multiplier: 7 },
+            { type: 'anorganik', name: 'Botol Kaca', emoji: '🍾', multiplier: 8 },
+            { type: 'anorganik', name: 'Kemasan Sereal', emoji: '🥣', multiplier: 9 },
+            { type: 'kertas', name: 'Kotak Pizza', emoji: '🍕', multiplier: 10 },
+            { type: 'organik', name: 'Ranting', emoji: '🍂', multiplier: 11 },
+        ];
+
+        const missions = [
+            { id: 1, name: "Tanam Pohon Pertama", description: "Tanam 3 benih di lahan pertanian.", goal: { seedsPlanted: 3 }, reward: { score: 50, water: 5 } },
+            { id: 2, name: "Daur Ulang Sampah Anorganik", description: "Proses 5 sampah anorganik di pusat daur ulang.", goal: { anorganikProcessed: 5 }, reward: { score: 100, compost: 3 } },
+            { id: 3, name: "Kumpulkan Air", description: "Tarik 10 air dari sumur.", goal: { waterCollected: 10 }, reward: { score: 75, seeds: 2 } },
+            { id: 4, name: "Panen Pohon", description: "Panen 2 pohon dari lahanmu.", goal: { treesHarvested: 2 }, reward: { score: 150, water: 5, compost: 2 } },
+            { id: 5, name: "Daur Ulang Sampah Kertas", description: "Proses 5 sampah kertas di pusat daur ulang.", goal: { kertasProcessed: 5 }, reward: { score: 120, seeds: 3 } },
+        ];
+
+        let missionState = {
+            seedsPlanted: 0,
+            anorganikProcessed: 0,
+            kertasProcessed: 0,
+            waterCollected: 0,
+            treesHarvested: 0,
+            completed: []
+        };
+
+        // Farm plot data
+        const farmData = Array.from({ length: 25 }, () => ({
+            stage: -1,
+            plotState: 'empty',
+            lastGrowthTime: null,
+            lastWateredTime: null,
+            treeMesh: null
+        }));
+
+        // Three.js variables for main farm
+        let scene, camera, renderer;
+        let raycaster, mouse;
+        let plotMeshes = [];
+        let farmerMesh;
+        let targetPosition = null;
+
+        // --- Save/Load Functions ---
+        const SAVE_KEY = 'desaHijauSave';
+
+        const saveGame = () => {
+            const gameState = {
+                score,
+                compost,
+                water,
+                seeds,
+                anorganikItems,
+                kertasItems,
+                missionState,
+                farmData: farmData.map(plot => ({
+                    stage: plot.stage,
+                    plotState: plot.plotState,
+                    lastGrowthTime: plot.lastGrowthTime,
+                    lastWateredTime: plot.lastWateredTime
+                })),
+                currentMission: currentMission ? currentMission.id : null,
+                trashCount,
+            };
+            localStorage.setItem(SAVE_KEY, JSON.stringify(gameState));
+            console.log('Game saved!');
+            updateMainMenu();
+        };
+
+        const loadGame = () => {
+            const savedState = localStorage.getItem(SAVE_KEY);
+            if (savedState) {
+                const gameState = JSON.parse(savedState);
+                score = gameState.score;
+                compost = gameState.compost;
+                water = gameState.water;
+                seeds = gameState.seeds;
+                anorganikItems = gameState.anorganikItems;
+                kertasItems = gameState.kertasItems;
+                missionState = gameState.missionState;
+                trashCount = gameState.trashCount;
+                gameState.farmData.forEach((savedPlot, index) => {
+                    farmData[index].stage = savedPlot.stage;
+                    farmData[index].plotState = savedPlot.plotState;
+                    farmData[index].lastGrowthTime = savedPlot.lastGrowthTime;
+                    farmData[index].lastWateredTime = savedPlot.lastWateredTime;
+                });
+                if (gameState.currentMission) {
+                    currentMission = missions.find(m => m.id === gameState.currentMission);
+                } else {
+                    startNewMission();
+                }
+                console.log('Game loaded!');
+                updateFarmDisplay();
+                updateFarmButtons();
+            } else {
+                resetGame();
+            }
+        };
+
+        const hasSavedGame = () => {
+            return localStorage.getItem(SAVE_KEY) !== null;
+        };
+
+        const updateMainMenu = () => {
+            const continueBtn = document.getElementById('continue-game-btn');
+            if (hasSavedGame()) {
+                if(continueBtn) {
+                  continueBtn.disabled = false;
+                  continueBtn.classList.remove('disabled');
+                  continueBtn.style.backgroundImage = 'linear-gradient(to right, #60a5fa, #3b82f6)';
+                }
+            } else {
+                if(continueBtn) {
+                  continueBtn.disabled = true;
+                  continueBtn.classList.add('disabled');
+                  continueBtn.style.backgroundImage = 'none';
+                }
+            }
+        };
+
+        // Screen management
+        const showScreen = (id) => {
+            document.querySelectorAll('#main-menu-container, #game-screens').forEach(screen => {
+                screen.classList.add('hidden');
+            });
+
+            if (id === 'main-menu' || id === 'about' || id === 'instructions') {
+                 mainMenuContainer.classList.remove('hidden');
+                 document.querySelectorAll('#main-menu-container > div').forEach(screen => screen.classList.add('hidden'));
+                 document.getElementById(id).classList.remove('hidden');
+                 if (id === 'main-menu') {
+                    updateMainMenu();
+                 }
+            } else {
+                 gameContainer.classList.remove('hidden');
+                 document.querySelectorAll('#game-screens > div').forEach(screen => screen.classList.add('hidden'));
+                 document.getElementById(id).classList.remove('hidden');
+                 if (id === 'farm-game') {
+                    if (!renderer) {
+                        initializeFarm();
+                    } else {
+                        const canvas = document.getElementById('farm-canvas');
+                        renderer.setSize(canvas.offsetWidth, canvas.offsetHeight);
+                        camera.aspect = canvas.offsetWidth / canvas.offsetHeight;
+                        camera.updateProjectionMatrix();
+                    }
+                    updateFarmDisplay();
+                    updateFarmButtons();
+                    startWiltingCheck();
+                 } else if (id === 'recycling-game') {
+                    startGameRecycling();
+                 }
+            }
+        };
+
+        const showModal = (id) => {
+             document.getElementById(id).classList.remove('hidden');
+             document.getElementById(id).classList.add('active');
+            if (id === 'marketplace-modal') {
+                updateMarketplaceDisplay();
+            } else if (id === 'warehouse-modal') {
+                updateWarehouseDisplay();
+            } else if (id === 'well-game-3d-modal') {
+                startWellMiniGame();
+            } else if (id === 'recycling-center-modal') {
+                updateRecyclingCenterDisplay();
+            } else if (id === 'missions-modal') {
+                updateMissionsDisplay();
+            } else if (id === 'encyclopedia-modal') {
+                updateEncyclopediaDisplay();
+            }
+        };
+
+        const hideModal = (id) => {
+            document.getElementById(id).classList.add('hidden');
+            document.getElementById(id).classList.remove('active');
+        };
+
+        // Main Game Functions
+        const startGameRecycling = () => {
+            if (currentItemElement) {
+                currentItemElement.remove();
+                currentItemElement = null;
+            }
+            trashCount = 0;
+            generateNewItem();
+        };
+
+        const resetGame = () => {
+            if (wiltingInterval) clearInterval(wiltingInterval);
+            gameRunning = false;
+            if (currentItemElement) {
+                currentItemElement.remove();
+            }
+            score = 0;
+            compost = 5;
+            water = 5;
+            seeds = 5;
+            anorganikItems = 0;
+            kertasItems = 0;
+            trashCount = 0;
+            missionState = {
+                seedsPlanted: 0,
+                anorganikProcessed: 0,
+                kertasProcessed: 0,
+                waterCollected: 0,
+                treesHarvested: 0,
+                completed: []
+            };
+            currentMission = null;
+
+            if (scene) {
+                plotMeshes.forEach(mesh => {
+                    const existingTree = mesh.getObjectByName('tree');
+                    if (existingTree) {
+                        mesh.remove(existingTree);
+                    }
+                });
+            }
+
+            updateRecyclingDisplay();
+            updateFarmDisplay();
+            updateFarmButtons();
+
+            localStorage.removeItem(SAVE_KEY);
+        };
+
+        const endGame = () => {
+            if (wiltingInterval) clearInterval(wiltingInterval);
+            document.getElementById('final-score').textContent = score;
+            displayStarRating(score);
+            showModal('game-over-modal');
+            saveGame();
+        };
+
+        const displayStarRating = (finalScore) => {
+            let stars = '';
+            if (finalScore >= 300) {
+                stars = '⭐ ⭐ ⭐';
+            } else if (finalScore >= 150) {
+                stars = '⭐ ⭐';
+            } else {
+                stars = '⭐';
+            }
+            document.getElementById('star-rating').textContent = stars;
+        };
+
+        const generateNewItem = () => {
+            if (currentItemElement) {
+                currentItemElement.remove();
+            }
+
+            const randomIndex = Math.floor(Math.random() * trashItems.length);
+            const itemData = trashItems[randomIndex];
+
+            currentItemElement = document.createElement('div');
+            currentItemElement.className = 'item';
+            currentItemElement.setAttribute('data-type', itemData.type);
+            currentItemElement.setAttribute('data-multiplier', itemData.multiplier || 1);
+            currentItemElement.innerHTML = `
+                <span class="item-emoji">${itemData.emoji}</span>
+                <span class="item-name">${itemData.name}</span>
+            `;
+
+            if (recyclingArea) {
+              recyclingArea.appendChild(currentItemElement);
+
+              const gameRect = recyclingArea.getBoundingClientRect();
+              const randomX = Math.random() * (gameRect.width - itemSize);
+              currentItemElement.style.left = `${randomX}px`;
+              currentItemElement.style.top = `20px`;
+
+              currentItemElement.addEventListener('pointerdown', handleDown, { passive: false });
+            }
+            updateRecyclingDisplay();
+        };
+
+        const updateRecyclingDisplay = () => {
+            if (scoreDisplay) scoreDisplay.textContent = `Koin: ${score}`;
+            if (itemCountDisplay) itemCountDisplay.textContent = `Item: ${trashCount}`;
+            if (compostCountDisplay) compostCountDisplay.textContent = compost;
+        };
+
+        // ** LOGIKA DRAG-AND-DROP **
+        let dragOffset = { x: 0, y: 0 };
+
+        const handleDown = (e) => {
+            e.preventDefault();
+
+            currentItemElement = e.target.closest('.item');
+            if (!currentItemElement) return;
+
+            currentItemElement.setPointerCapture(e.pointerId);
+
+            isDragging = true;
+            currentItemElement.classList.add('dragging');
+
+            const itemRect = currentItemElement.getBoundingClientRect();
+            dragOffset.x = e.clientX - itemRect.left;
+            dragOffset.y = e.clientY - itemRect.top;
+
+            document.addEventListener('pointermove', handleMove);
+            document.addEventListener('pointerup', handleUp);
+        };
+
+        const handleMove = (e) => {
+            if (!isDragging || !currentItemElement || !recyclingArea) return;
+            const gameRect = recyclingArea.getBoundingClientRect();
+
+            let newX = e.clientX - dragOffset.x - gameRect.left;
+            let newY = e.clientY - dragOffset.y - gameRect.top;
+
+            newX = Math.max(0, Math.min(newX, recyclingArea.offsetWidth - itemSize));
+            newY = Math.max(0, Math.min(newY, recyclingArea.offsetHeight - itemSize));
+
+            currentItemElement.style.left = `${newX}px`;
+            currentItemElement.style.top = `${newY}px`;
+
+            const currentItemType = currentItemElement.getAttribute('data-type');
+
+            bins.forEach(bin => {
+                const binRect = bin.getBoundingClientRect();
+                const itemRect = currentItemElement.getBoundingClientRect();
+                if (itemRect.right > binRect.left && itemRect.left < binRect.right && itemRect.bottom > binRect.top && itemRect.top < binRect.bottom) {
+                    if (bin.getAttribute('data-type') === currentItemType) {
+                        bin.classList.add('bin-highlight');
+                    } else {
+                        bin.classList.remove('bin-highlight');
+                    }
+                } else {
+                    bin.classList.remove('bin-highlight');
+                }
+            });
+        };
+
+        const handleUp = (e) => {
+            if (!isDragging || !currentItemElement) return;
+
+            isDragging = false;
+            currentItemElement.releasePointerCapture(e.pointerId);
+            document.removeEventListener('pointermove', handleMove);
+            document.removeEventListener('pointerup', handleUp);
+            currentItemElement.classList.remove('dragging');
+
+            bins.forEach(bin => bin.classList.remove('bin-highlight'));
+
+            const itemRect = currentItemElement.getBoundingClientRect();
+            const currentItemType = currentItemElement.getAttribute('data-type');
+
+            let isDroppedCorrectly = false;
+            let droppedOnBin = false;
+
+            for (const bin of bins) {
+                const binRect = bin.getBoundingClientRect();
+                if (itemRect.right > binRect.left && itemRect.left < binRect.right && itemRect.bottom > binRect.top && itemRect.top < binRect.bottom) {
+                    droppedOnBin = true;
+                    bin.classList.add('open-bin');
+                    if (bin.getAttribute('data-type') === currentItemType) {
+                        isDroppedCorrectly = true;
+                        bin.classList.add('bin-correct');
+                    } else {
+                        bin.classList.add('bin-error');
+                        score = Math.max(0, score - 5);
+                    }
+                    setTimeout(() => {
+                        bin.classList.remove('open-bin', 'bin-correct', 'bin-error');
+                    }, 500);
+                    break;
+                }
+            }
+
+            if (isDroppedCorrectly) {
+                if (currentItemType === 'organik') {
+                    compost += 1;
+                    score += 10;
+                } else if (currentItemType === 'anorganik') {
+                    anorganikItems += 1;
+                    score += 5;
+                } else if (currentItemType === 'kertas') {
+                    kertasItems += 1;
+                    score += 5;
+                }
+                trashCount++;
+            }
+
+            currentItemElement.remove();
+            updateRecyclingDisplay();
+            generateNewItem();
+        };
+
+        // Marketplace Functions
+        const updateMarketplaceDisplay = () => {
+            if (marketMessage) marketMessage.textContent = '';
+        };
+
+        const buyItem = (itemType) => {
+            if (itemType === 'benih' && score >= 20) {
+                score -= 20;
+                seeds += 1;
+                if (marketMessage) marketMessage.textContent = 'Benih berhasil dibeli!';
+            } else {
+                if (marketMessage) marketMessage.textContent = 'Koin tidak cukup!';
+            }
+            updateMarketplaceDisplay();
+            updateFarmDisplay();
+        };
+
+        // Warehouse Functions
+        const updateWarehouseDisplay = () => {
+            if (warehouseCompostCount) warehouseCompostCount.textContent = compost;
+            if (warehouseWaterCount) warehouseWaterCount.textContent = water;
+            if (warehouseSeedCount) warehouseSeedCount.textContent = seeds;
+            if (warehouseAnorganikCount) warehouseAnorganikCount.textContent = anorganikItems;
+            if (warehouseKertasCount) warehouseKertasCount.textContent = kertasItems;
+        };
+
+        // Recycling Center Functions
+        const updateRecyclingCenterDisplay = () => {
+            if (recyclingAnorganikCount) recyclingAnorganikCount.textContent = anorganikItems;
+            if (recyclingKertasCount) recyclingKertasCount.textContent = kertasItems;
+            if (recyclingMessage) recyclingMessage.textContent = '';
+        };
+
+        const processItems = (itemType) => {
+            if (itemType === 'anorganik' && anorganikItems > 0) {
+                score += anorganikItems * 10;
+                missionState.anorganikProcessed += anorganikItems;
+                anorganikItems = 0;
+                if (recyclingMessage) recyclingMessage.textContent = `Berhasil memproses sampah plastik & logam!`;
+            } else if (itemType === 'kertas' && kertasItems > 0) {
+                score += kertasItems * 15;
+                missionState.kertasProcessed += kertasItems;
+                kertasItems = 0;
+                if (recyclingMessage) recyclingMessage.textContent = `Berhasil memproses sampah kertas!`;
+            } else {
+                if (recyclingMessage) recyclingMessage.textContent = 'Tidak ada sampah untuk diproses!';
+            }
+            updateRecyclingCenterDisplay();
+            updateFarmDisplay();
+            checkMissionProgress();
+        };
+
+        // Missions Functions
+        const startNewMission = () => {
+            const availableMissions = missions.filter(m => !missionState.completed.includes(m.id));
+            if (availableMissions.length > 0) {
+                const randomIndex = Math.floor(Math.random() * availableMissions.length);
+                currentMission = availableMissions[randomIndex];
+            } else {
+                currentMission = null;
+            }
+        };
+
+        const updateMissionsDisplay = () => {
+            const missionContainer = document.getElementById('mission-container');
+            const missionMessage = document.getElementById('mission-message');
+
+            if (!missionContainer || !missionMessage) return;
+
+            missionContainer.innerHTML = '';
+            missionMessage.textContent = '';
+
+            if (currentMission) {
+                const missionElement = document.createElement('div');
+                missionElement.className = "p-4 border border-orange-300 rounded-lg mb-4 bg-orange-50";
+                missionElement.innerHTML = `
+                    <h3 class="text-xl font-bold mb-2">${currentMission.name}</h3>
+                    <p class="mb-2 text-orange-800">${currentMission.description}</p>
+                    <div class="font-bold text-sm">
+                        <span>Status: </span>
+                        <span id="mission-status" class="text-orange-500"></span>
+                    </div>
+                    <button id="complete-mission-btn" class="btn w-full mt-4" disabled>Tandai Selesai</button>
+                `;
+                missionContainer.appendChild(missionElement);
+                checkMissionProgress();
+            } else {
+                missionContainer.innerHTML = '<p class="text-center font-bold text-gray-500">Tidak ada misi saat ini. Kembali lagi nanti!</p>';
+            }
+        };
+
+        const checkMissionProgress = () => {
+            const completeBtn = document.getElementById('complete-mission-btn');
+            const statusText = document.getElementById('mission-status');
+
+            if (!currentMission || !completeBtn || !statusText) {
+                return;
+            }
+
+            let isComplete = true;
+            for (const key in currentMission.goal) {
+                if (missionState[key] < currentMission.goal[key]) {
+                    isComplete = false;
+                    statusText.textContent = `(${key} ${missionState[key]} dari ${currentMission.goal[key]})`;
+                    break;
+                }
+            }
+            if (isComplete) {
+                statusText.textContent = "Selesai!";
+                completeBtn.disabled = false;
+                completeBtn.classList.remove('disabled');
+            } else {
+                 completeBtn.disabled = true;
+                 completeBtn.classList.add('disabled');
+            }
+        };
+
+        const completeMission = () => {
+            if (!currentMission) return;
+            score += currentMission.reward.score || 0;
+            compost += currentMission.reward.compost || 0;
+            water += currentMission.reward.water || 0;
+            seeds += currentMission.reward.seeds || 0;
+            missionState.completed.push(currentMission.id);
+
+            const missionMessage = document.getElementById('mission-message');
+            if (missionMessage) {
+                missionMessage.textContent = "Misi selesai! Hadiah telah ditambahkan.";
+            }
+            currentMission = null;
+            updateFarmDisplay();
+            setTimeout(() => {
+                startNewMission();
+                updateMissionsDisplay();
+            }, 1000);
+        };
+
+        // Encyclopedia Functions
+        const updateEncyclopediaDisplay = () => {
+            const content = document.getElementById('encyclopedia-content');
+            if (!content) return;
+            content.innerHTML = '';
+            for (const item in encyclopediaData) {
+                const entry = document.createElement('div');
+                entry.className = "bg-green-100 p-3 rounded-lg";
+                entry.innerHTML = `
+                    <h4 class="font-bold text-green-800">${item}</h4>
+                    <p class="text-sm text-green-700">${encyclopediaData[item]}</p>
+                `;
+                content.appendChild(entry);
+            }
+        };
+
+        const startWiltingCheck = () => {
+            if (wiltingInterval) clearInterval(wiltingInterval);
+            wiltingInterval = setInterval(() => {
+                const now = Date.now();
+                farmData.forEach((plot, index) => {
+                    if (plot.plotState !== 'empty' && plot.plotState !== 'wilted' && plot.plotState !== 'ready') {
+                        // Check for wilting
+                        if (now - plot.lastWateredTime > WILT_TIME) {
+                            plot.plotState = 'wilted';
+                            plot.stage = -2;
+                            updateTreeModel(index);
+                            updatePlotColor(index);
+                            return;
+                        }
+
+                        let growthSpeed = SLOW_GROWTH_TIME;
+                        if (plot.plotState === 'watered' || plot.plotState === 'fertilized') {
+                            growthSpeed = FAST_GROWTH_TIME;
+                        }
+
+                        if (now - plot.lastGrowthTime > growthSpeed) {
+                            plot.stage++;
+                            plot.lastGrowthTime = now;
+                            if (plot.stage === 3) {
+                                plot.plotState = 'ready';
+                            }
+                            updateTreeModel(index);
+                            updatePlotColor(index);
+                        }
+                    }
+                });
+            }, 1000);
+        };
+
+        // Three.js global variables for animation and smoke
+        let smokeParticles = [];
+        const smokeTexture = new THREE.TextureLoader().load('https://raw.githubusercontent.com/mrdoob/three.js/r128/examples/textures/sprites/smokeparticle.png');
+        const smokeMaterial = new THREE.SpriteMaterial({ map: smokeTexture, color: 0x808080, transparent: true, blending: THREE.AdditiveBlending });
+
+        function createSmoke() {
+            const particle = new THREE.Sprite(smokeMaterial.clone());
+            particle.position.set(0, 0, 0); // Placeholder
+            particle.scale.set(0.5, 0.5, 0.5);
+            particle.velocity = new THREE.Vector3( (Math.random() - 0.5) * 0.01, 0.05, (Math.random() - 0.5) * 0.01 );
+            particle.life = 100;
+            smokeParticles.push(particle);
+            scene.add(particle);
+        }
+
+        function updateSmoke() {
+            for (let i = smokeParticles.length - 1; i >= 0; i--) {
+                const particle = smokeParticles[i];
+                particle.position.add(particle.velocity);
+                particle.material.opacity -= 0.005;
+                if (particle.material.opacity <= 0) {
+                    scene.remove(particle);
+                    smokeParticles.splice(i, 1);
+                }
+            }
+        }
+        
+        // Farm Game Functions (3D)
+        const initializeFarm = () => {
+            const canvas = document.getElementById('farm-canvas');
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(50, canvas.offsetWidth / canvas.offsetHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+            renderer.setSize(canvas.offsetWidth, canvas.offsetHeight);
+            renderer.setClearColor(0x4CAF50, 1);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+            directionalLight.position.set(20, 30, 10);
+            scene.add(directionalLight);
+
+            const ground = new THREE.Mesh(new THREE.BoxGeometry(40, 0.2, 40), new THREE.MeshLambertMaterial({ color: 0x4CAF50 }));
+            scene.add(ground);
+
+            const mountainMaterialLowPoly = new THREE.MeshLambertMaterial({ color: 0x4B553C });
+            const mountainPositions = [
+                { x: -50, z: -80, h: 40, r: 25 },
+                { x: 30, z: -90, h: 50, r: 30 },
+                { x: -10, z: -100, h: 60, r: 35 },
+                { x: 70, z: -70, h: 35, r: 20 },
+                { x: -80, z: -60, h: 45, r: 28 },
+            ];
+            mountainPositions.forEach(m => {
+                const mountainGeometry = new THREE.ConeGeometry(m.r, m.h, 6);
+                const mountain = new THREE.Mesh(mountainGeometry, mountainMaterialLowPoly);
+                mountain.position.set(m.x, m.h / 2, m.z);
+                scene.add(mountain);
+            });
+
+            const waterGeometry = new THREE.PlaneGeometry(100, 100);
+            const waterMaterial = new THREE.MeshBasicMaterial({ color: 0xa0c4ff });
+            const ocean = new THREE.Mesh(waterGeometry, waterMaterial);
+            ocean.rotation.x = -Math.PI / 2;
+            ocean.position.y = -1;
+            ocean.position.z = -100;
+            scene.add(ocean);
+
+            const treeMaterial = new THREE.MeshLambertMaterial({ color: 0x228B22 });
+            const trunkMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+            const rockMaterial = new THREE.MeshLambertMaterial({ color: 0xA9A9A9 });
+            const exclusionZone = [
+                {x: [-15, 15], z: [-10, 15]},
+                {x: [-15, -5], z: [-10, 0]},
+                {x: [8, 12], z: [8, 12]},
+                {x: [-7, -1], z: [8, 12]},
+                {x: [6, 10], z: [8, 12]}
+            ];
+            const isInsideExclusionZone = (x, z) => {
+                for(const zone of exclusionZone) {
+                    if (x >= zone.x[0] && x <= zone.x[1] && z >= zone.z[0] && z <= zone.z[1]) {
+                        return true;
+                    }
+                }
+                return false;
+            };
+
+            for(let i = 0; i < 50; i++) {
+                let x, z;
+                do {
+                    x = (Math.random() - 0.5) * 80;
+                    z = (Math.random() - 0.5) * 80;
+                } while(isInsideExclusionZone(x, z));
+
+                const treeGroup = new THREE.Group();
+                const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.8, 5, 8), trunkMaterial);
+                trunk.position.y = 2.5;
+                const leaves = new THREE.Mesh(new THREE.IcosahedronGeometry(2), treeMaterial);
+                leaves.position.y = 6;
+                treeGroup.add(trunk, leaves);
+                treeGroup.position.x = x;
+                treeGroup.position.z = z;
+                scene.add(treeGroup);
+
+                x = (Math.random() - 0.5) * 80;
+                z = (Math.random() - 0.5) * 80;
+                if(!isInsideExclusionZone(x, z)) {
+                     const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(Math.random() * 1 + 0.5), rockMaterial);
+                     rock.position.x = x;
+                     rock.position.z = z;
+                     rock.position.y = Math.random() * 0.2;
+                     scene.add(rock);
+                }
+            }
+
+            const pathMaterial = new THREE.MeshLambertMaterial({ color: 0x8B5E3C });
+            const createPath = (width, depth, x, z) => {
+                const path = new THREE.Mesh(new THREE.BoxGeometry(width, 0.1, depth), pathMaterial);
+                path.position.set(x, 0.1, z);
+                scene.add(path);
+            };
+            // Pathing for the new layout
+            createPath(20, 2, 0, 8); // Front path
+            createPath(2, 16, -9, 0); // Left path
+            createPath(2, 16, 9, 0); // Right path
+            createPath(20, 2, 0, -8); // Back path
+            createPath(2, 5, -11, -3); // Path to house and village office
+            createPath(5, 2, -13.5, -5.5); // Path to village office
+            createPath(2, 5, 11, -3); // Path to barn
+            createPath(2, 6, -14, -1); // Path to recycling center
+            
+            const plotMaterial = new THREE.MeshLambertMaterial({ color: 0x5C4033 });
+            const plotSize = 2;
+            const plotsX = [-5, -2.5, 0, 2.5, 5];
+            const plotsZ = [-5, -2.5, 0, 2.5, 5];
+            let plotIndex = 0;
+            for(let z of plotsZ) {
+                for(let x of plotsX) {
+                    const mesh = new THREE.Mesh(new THREE.BoxGeometry(plotSize - 0.5, 0.1, plotSize - 0.5), plotMaterial);
+                    mesh.position.set(x, 0.15, z);
+                    mesh.name = `plot-${plotIndex}`;
+                    scene.add(mesh);
+                    plotMeshes.push(mesh);
+                    plotIndex++;
+                }
+            }
+
+            // House (White body, Brown roof), moved slightly east
+            const houseGroup = new THREE.Group();
+            const houseBody = new THREE.Mesh(new THREE.BoxGeometry(6, 5, 5), new THREE.MeshLambertMaterial({ color: 0xFFFFFF }));
+            houseBody.position.y = 2.5;
+            const houseRoof = new THREE.Mesh(new THREE.ConeGeometry(4, 3, 4), new THREE.MeshLambertMaterial({ color: 0x8B4513 }));
+            houseRoof.position.y = 5.5;
+            houseRoof.rotation.y = Math.PI / 4;
+            const houseDoor = new THREE.Mesh(new THREE.BoxGeometry(1.5, 2.5, 0.2), new THREE.MeshLambertMaterial({ color: 0x6B4226 }));
+            houseDoor.position.set(0, 1.25, 2.5);
+            houseGroup.add(houseBody, houseRoof, houseDoor);
+            houseGroup.position.set(12, 0, 5); // Shifted from 10 to 12 on x-axis
+            houseGroup.name = "house";
+            scene.add(houseGroup);
+
+            // Village Office (Dark Grey body, Brown roof with porch)
+            const villageOfficeGroup = new THREE.Group();
+            const villageOfficeBody = new THREE.Mesh(new THREE.BoxGeometry(5, 5, 5), new THREE.MeshLambertMaterial({ color: 0x4F4F4F }));
+            villageOfficeBody.position.y = 2.5;
+            const villageOfficeRoof = new THREE.Mesh(new THREE.ConeGeometry(3.5, 3, 4), new THREE.MeshLambertMaterial({ color: 0x8B4513 }));
+            villageOfficeRoof.position.y = 6;
+            villageOfficeRoof.rotation.y = Math.PI / 4;
+            villageOfficeGroup.add(villageOfficeBody, villageOfficeRoof);
+            
+            // Porch for Village Office
+            const porchFloor = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.1, 2), new THREE.MeshLambertMaterial({ color: 0x8B5E3C }));
+            porchFloor.position.set(0, 0.05, 2.5);
+            villageOfficeGroup.add(porchFloor);
+            const porchPillarGeometry = new THREE.CylinderGeometry(0.2, 0.2, 3.5, 8);
+            const porchPillarMaterial = new THREE.MeshLambertMaterial({ color: 0xFFFFFF });
+            const porchPillar1 = new THREE.Mesh(porchPillarGeometry, porchPillarMaterial);
+            porchPillar1.position.set(2.4, 1.75, 2.5);
+            villageOfficeGroup.add(porchPillar1);
+            const porchPillar2 = new THREE.Mesh(porchPillarGeometry, porchPillarMaterial);
+            porchPillar2.position.set(-2.4, 1.75, 2.5);
+            villageOfficeGroup.add(porchPillar2);
+            const porchRoof = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.1, 2), new THREE.MeshLambertMaterial({ color: 0x8B4513 }));
+            porchRoof.position.set(0, 3.5, 2.5);
+            villageOfficeGroup.add(porchRoof);
+            
+            villageOfficeGroup.position.set(-15, 0, -5);
+            villageOfficeGroup.name = "village-office";
+            scene.add(villageOfficeGroup);
+
+            // New Barn/Warehouse model based on the image
+            const barnGroup = new THREE.Group();
+            
+            // Barn main body
+            const barnMainBody = new THREE.Mesh(new THREE.BoxGeometry(8, 6, 6), new THREE.MeshLambertMaterial({ color: 0xC00000 }));
+            barnMainBody.position.y = 3;
+            barnGroup.add(barnMainBody);
+            
+            // Barn roof
+            const barnRoofShape = new THREE.Shape();
+            barnRoofShape.moveTo(-4.2, 0);
+            barnRoofShape.lineTo(-4.2, 2.5);
+            barnRoofShape.lineTo(-2, 3.5);
+            barnRoofShape.lineTo(2, 3.5);
+            barnRoofShape.lineTo(4.2, 2.5);
+            barnRoofShape.lineTo(4.2, 0);
+            const extrudeSettings = {
+                steps: 1,
+                depth: 6.5,
+                bevelEnabled: false,
+            };
+            const roofGeometry = new THREE.ExtrudeGeometry(barnRoofShape, extrudeSettings);
+            const roofMesh = new THREE.Mesh(roofGeometry, new THREE.MeshLambertMaterial({ color: 0x8B4513 }));
+            roofMesh.position.set(0, 6, -3.25);
+            barnGroup.add(roofMesh);
+
+            // Door
+            const doorMaterial = new THREE.MeshLambertMaterial({ color: 0xFFFFFF });
+            const doorFrameMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+            const doorGroup = new THREE.Group();
+            const doorLeft = new THREE.Mesh(new THREE.BoxGeometry(2, 4, 0.2), doorMaterial);
+            doorLeft.position.set(-1, 2, 3.1);
+            const doorRight = new THREE.Mesh(new THREE.BoxGeometry(2, 4, 0.2), doorMaterial);
+            doorRight.position.set(1, 2, 3.1);
+            doorGroup.add(doorLeft, doorRight);
+
+            // X-shaped frame
+            const xFrame1 = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.2, 0.2), doorFrameMaterial);
+            xFrame1.rotation.z = Math.PI / 4;
+            const xFrame2 = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.2, 0.2), doorFrameMaterial);
+            xFrame2.rotation.z = -Math.PI / 4;
+            doorLeft.add(xFrame1, xFrame2);
+
+            const xFrame3 = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.2, 0.2), doorFrameMaterial);
+            xFrame3.rotation.z = Math.PI / 4;
+            const xFrame4 = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.2, 0.2), doorFrameMaterial);
+            xFrame4.rotation.z = -Math.PI / 4;
+            doorRight.add(xFrame3, xFrame4);
+
+            barnGroup.add(doorGroup);
+            
+            // Silo
+            const siloGroup = new THREE.Group();
+            const siloBody = new THREE.Mesh(new THREE.CylinderGeometry(2, 2, 10, 32), new THREE.MeshLambertMaterial({ color: 0x8B4513 }));
+            siloBody.position.y = 5;
+            siloGroup.add(siloBody);
+
+            const siloRoof = new THREE.Mesh(new THREE.SphereGeometry(2.1, 32, 32, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0xC00000 }));
+            siloRoof.position.y = 10;
+            siloGroup.add(siloRoof);
+
+            siloGroup.position.set(6, 0, -3);
+            barnGroup.add(siloGroup);
+
+            // Hay bales
+            const hayMaterial = new THREE.MeshLambertMaterial({ color: 0xFFA500 });
+            const hayBale1 = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 16), hayMaterial);
+            hayBale1.position.set(2, 0.5, 3.5);
+            barnGroup.add(hayBale1);
+            const hayBale2 = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 16), hayMaterial);
+            hayBale2.position.set(3.5, 0.5, 3.5);
+            barnGroup.add(hayBale2);
+
+
+            barnGroup.position.set(10, 0, -5);
+            barnGroup.name = "barn";
+            scene.add(barnGroup);
+
+            // Recycling Center (Blue, with a chimney and smoke animation)
+            const recyclingCenterGroup = new THREE.Group();
+            const recyclingCenterBody = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 4), new THREE.MeshLambertMaterial({ color: 0x3B82F6 }));
+            recyclingCenterBody.position.y = 2;
+            const recyclingCenterRoof = new THREE.Mesh(new THREE.BoxGeometry(6, 0.5, 4), new THREE.MeshLambertMaterial({ color: 0x2563EB }));
+            recyclingCenterRoof.position.y = 4.25;
+            recyclingCenterGroup.add(recyclingCenterBody, recyclingCenterRoof);
+            
+            // Chimney
+            const chimney = new THREE.Mesh(new THREE.BoxGeometry(0.5, 2, 0.5), new THREE.MeshLambertMaterial({ color: 0x808080 }));
+            chimney.position.set(2, 5.25, 0);
+            chimney.name = 'chimney';
+            recyclingCenterGroup.add(chimney);
+
+            recyclingCenterGroup.position.set(-15, 0.2, 5);
+            recyclingCenterGroup.rotation.y = Math.PI;
+            recyclingCenterGroup.name = "recycling-center";
+            scene.add(recyclingCenterGroup);
+            
+            // Path to the recycling center
+            const recyclingPath = new THREE.Mesh(new THREE.BoxGeometry(8, 0.1, 2), pathMaterial);
+            recyclingPath.position.set(-12, 0.1, 5);
+            scene.add(recyclingPath);
+
+            // Rustic Fence
+            const rusticFenceMaterial = new THREE.MeshLambertMaterial({ color: 0x6B4226 });
+            const createRusticFence = (startPos, endPos, postCount, segmentCount) => {
+                const fenceGroup = new THREE.Group();
+                const pathVec = new THREE.Vector3().subVectors(endPos, startPos);
+                const fenceLength = pathVec.length();
+                const segmentLength = fenceLength / segmentCount;
+
+                for (let j = 0; j <= segmentCount; j++) {
+                    const segmentStart = startPos.clone().add(pathVec.clone().normalize().multiplyScalar(j * segmentLength));
+                    const segmentEnd = startPos.clone().add(pathVec.clone().normalize().multiplyScalar((j + 1) * segmentLength));
+
+                    if (j < segmentCount) {
+                        const midPoint = new THREE.Vector3().lerpVectors(segmentStart, segmentEnd, 0.5);
+                        const railThickness = 0.15 + Math.random() * 0.05;
+                        const railRadius = 0.05 + Math.random() * 0.05;
+                        const railAngle = Math.random() * Math.PI / 12;
+
+                        const railGeometry = new THREE.CylinderGeometry(railRadius, railRadius, segmentLength, 8);
+                        const railMesh = new THREE.Mesh(railGeometry, rusticFenceMaterial);
+                        railMesh.position.copy(midPoint);
+                        railMesh.position.y = 0.7 + Math.random() * 0.1;
+                        railMesh.lookAt(segmentEnd);
+                        railMesh.rotateX(Math.PI / 2 + railAngle);
+                        fenceGroup.add(railMesh);
+
+                        const railMesh2 = new THREE.Mesh(railGeometry, rusticFenceMaterial);
+                        railMesh2.position.copy(midPoint);
+                        railMesh2.position.y = 0.4 + Math.random() * 0.1;
+                        railMesh2.lookAt(segmentEnd);
+                        railMesh2.rotateX(Math.PI / 2 - railAngle);
+                        fenceGroup.add(railMesh2);
+                    }
+                    if (j < postCount) {
+                        const postPos = startPos.clone().add(pathVec.clone().normalize().multiplyScalar(j * fenceLength / (postCount - 1)));
+                        const postHeight = 1 + Math.random() * 0.4;
+                        const postRadius = 0.1 + Math.random() * 0.05;
+                        const postGeometry = new THREE.CylinderGeometry(postRadius, postRadius * 1.5, postHeight, 8);
+                        const postMesh = new THREE.Mesh(postGeometry, rusticFenceMaterial);
+                        postMesh.position.copy(postPos);
+                        postMesh.position.y = postHeight / 2;
+                        fenceGroup.add(postMesh);
+                    }
+                }
+                return fenceGroup;
+            };
+
+            const frontFence = createRusticFence(new THREE.Vector3(-8, 0, 8), new THREE.Vector3(8, 0, 8), 10, 20);
+            scene.add(frontFence);
+
+            const backFence = createRusticFence(new THREE.Vector3(-8, 0, -8), new THREE.Vector3(8, 0, -8), 10, 20);
+            scene.add(backFence);
+
+            const leftFence = createRusticFence(new THREE.Vector3(-8, 0, 8), new THREE.Vector3(-8, 0, -8), 8, 16);
+            scene.add(leftFence);
+
+            const rightFence = createRusticFence(new THREE.Vector3(8, 0, 8), new THREE.Vector3(8, 0, -8), 8, 16);
+            scene.add(rightFence);
+
+            const binPositions = [
+                { type: 'organik', color: 0x22c55e, pos: { x: -14, y: 0.5, z: 7.5 } },
+                { type: 'anorganik', color: 0xFACC15, pos: { x: -15, y: 0.5, z: 7.5 } },
+                { type: 'kertas', color: 0x3B82F6, pos: { x: -16, y: 0.5, z: 7.5 } }
+            ];
+            const binGeometry = new THREE.CylinderGeometry(0.5, 0.6, 1, 16);
+            binPositions.forEach(bin => {
+                const binMesh = new THREE.Mesh(binGeometry, new THREE.MeshLambertMaterial({ color: bin.color }));
+                binMesh.position.set(bin.pos.x, bin.pos.y, bin.pos.z);
+                binMesh.rotation.y = Math.PI; // Rotated to face forward
+                binMesh.name = `bin-${bin.type}`;
+                scene.add(binMesh);
+            });
+            
+            const signPost = new THREE.Mesh(new THREE.BoxGeometry(0.2, 2, 0.2), new THREE.MeshLambertMaterial({ color: 0x8B4513 }));
+            signPost.position.y = 1;
+            signPost.position.set(8, 1, 10);
+            signPost.name = "market-sign";
+            scene.add(signPost);
+            const signBoard = new THREE.Mesh(new THREE.BoxGeometry(2, 1, 0.1), new THREE.MeshLambertMaterial({ color: 0x8B4513 }));
+            signBoard.position.y = 2;
+            signBoard.position.set(8, 2, 10);
+            signBoard.name = "market-board";
+            scene.add(signBoard);
+            
+            // Well (Fixed model without animation on click)
+            const wellBody = new THREE.Mesh(new THREE.CylinderGeometry(1, 1.2, 1, 16), new THREE.MeshLambertMaterial({ color: 0x808080 }));
+            wellBody.position.y = 0.5;
+            wellBody.position.set(-8, 0.5, -1);
+            wellBody.name = "well";
+            scene.add(wellBody);
+            
+            const wellRoof = new THREE.Mesh(new THREE.ConeGeometry(2, 2, 4), new THREE.MeshLambertMaterial({ color: 0x8B4513 }));
+            wellRoof.position.y = 2;
+            wellRoof.position.set(-8, 2, -1);
+            wellRoof.rotation.y = Math.PI/4;
+            wellRoof.name = "well-cover";
+            scene.add(wellRoof);
+            
+            const farmerGroup = new THREE.Group();
+            const farmerBody = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1, 0.5), new THREE.MeshLambertMaterial({ color: 0x4682B4 }));
+            farmerBody.position.y = 0.5;
+            const farmerHead = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), new THREE.MeshLambertMaterial({ color: 0xF5DEB3 }));
+            farmerHead.position.y = 1.25;
+            const farmerHat = new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.5, 8), new THREE.MeshLambertMaterial({ color: 0x8B4513 }));
+            farmerHat.position.y = 1.7;
+            farmerGroup.add(farmerBody, farmerHead, farmerHat);
+            farmerGroup.position.set(0, 0.5, 12);
+            farmerMesh = farmerGroup;
+            scene.add(farmerMesh);
+
+            camera.position.set(0, 20, 20);
+            camera.lookAt(0, 0, 0);
+
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+            canvas.addEventListener('click', onCanvasClick, false);
+            
+            animate();
+            updateFarmDisplay();
+            updateFarmButtons();
+
+            startNewMission();
+        };
+
+        function onCanvasClick(event) {
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(scene.children, true);
+            
+            if (intersects.length > 0) {
+                const clickedMesh = intersects[0].object;
+                
+                let topLevelObject = clickedMesh;
+                while (topLevelObject.parent && topLevelObject.parent.type !== 'Scene') {
+                    topLevelObject = topLevelObject.parent;
+                }
+                
+                const targetPos = new THREE.Vector3();
+                const objName = topLevelObject.name;
+                const objPos = topLevelObject.position;
+
+                if (objName && objName.startsWith('plot')) {
+                    const plotIndex = parseInt(objName.split('-')[1]);
+                    if (plotIndex !== activePlotIndex) {
+                        selectPlot(plotIndex);
+                    }
+                    targetPos.copy(objPos);
+                    targetPos.z += 2;
+                    targetPos.y = farmerMesh.position.y;
+                    targetPosition = targetPos;
+                } else if (objName && objName.startsWith('bin')) {
+                    targetPos.copy(objPos);
+                    targetPos.z += 2;
+                    targetPos.y = farmerMesh.position.y;
+                    targetPosition = targetPos;
+                    setTimeout(() => { saveGame(); showScreen('recycling-game'); }, 1000);
+                } else if (objName === 'market-sign' || objName === 'market-board') {
+                    targetPos.copy(objPos);
+                    targetPos.x += 2;
+                    targetPos.y = farmerMesh.position.y;
+                    targetPosition = targetPos;
+                    setTimeout(() => showModal('marketplace-modal'), 1000);
+                } else if (objName === 'barn') {
+                    targetPos.copy(objPos);
+                    targetPos.z += 2;
+                    targetPos.y = farmerMesh.position.y;
+                    targetPosition = targetPos;
+                    setTimeout(() => showModal('warehouse-modal'), 1000);
+                } else if (objName === 'well' || objName === 'well-cover') {
+                    targetPos.copy(objPos);
+                    targetPos.z += 2;
+                    targetPos.y = farmerMesh.position.y;
+                    targetPosition = targetPos;
+                    setTimeout(() => {
+                        showModal('well-game-3d-modal');
+                    }, 1000); // Wait for farmer to arrive before opening well
+                } else if (objName === 'recycling-center') {
+                    targetPos.copy(objPos);
+                    targetPos.z += 2; // Adjust position to be in front of the building
+                    targetPos.y = farmerMesh.position.y;
+                    targetPosition = targetPos;
+                    setTimeout(() => showModal('recycling-center-modal'), 1000);
+                } else if (objName === 'village-office') {
+                    targetPos.copy(objPos);
+                    targetPos.x += 2; // Adjust position to be in front of the building
+                    targetPos.y = farmerMesh.position.y;
+                    targetPosition = targetPos;
+                    setTimeout(() => showModal('missions-modal'), 1000);
+                } else if (objName === 'house') {
+                    targetPos.copy(objPos);
+                    targetPos.z += 2;
+                    targetPos.y = farmerMesh.position.y;
+                    targetPosition = targetPos;
+                    setTimeout(() => showModal('encyclopedia-modal'), 1000);
+                } else {
+                    targetPosition = null;
+                }
+            }
+        }
+        
+        const animate = () => {
+            requestAnimationFrame(animate);
+            updateSmoke(); // Update smoke animation
+            if (Math.random() > 0.95) { // Create new smoke particles randomly
+                const recyclingCenter = scene.getObjectByName('recycling-center');
+                if (recyclingCenter) {
+                    const chimney = recyclingCenter.children.find(c => c.name === 'chimney');
+                    if (chimney) {
+                        const particle = new THREE.Sprite(smokeMaterial.clone());
+                        particle.position.set(recyclingCenter.position.x + chimney.position.x, recyclingCenter.position.y + chimney.position.y + 1, recyclingCenter.position.z + chimney.position.z);
+                        particle.scale.set(0.5, 0.5, 0.5);
+                        particle.velocity = new THREE.Vector3( (Math.random() - 0.5) * 0.01, 0.05, (Math.random() - 0.5) * 0.01 );
+                        particle.life = 100;
+                        smokeParticles.push(particle);
+                        scene.add(particle);
+                    }
+                }
+            }
+
+
+            if (targetPosition) {
+                const distance = farmerMesh.position.distanceTo(targetPosition);
+                if (distance > 0.1) {
+                    const direction = targetPosition.clone().sub(farmerMesh.position).normalize();
+                    farmerMesh.position.add(direction.multiplyScalar(0.05));
+                    
+                    const targetQuaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), direction);
+                    farmerMesh.quaternion.slerp(targetQuaternion, 0.1);
+                } else {
+                    targetPosition = null;
+                }
+            }
+            renderer.render(scene, camera);
+        };
+
+        const updateTreeModel = (index) => {
+            if (!plotMeshes[index]) return;
+            
+            const existingTree = plotMeshes[index].getObjectByName('tree');
+            if (existingTree) {
+                plotMeshes[index].remove(existingTree);
+            }
+
+            const stage = farmData[index].stage;
+            if (stage === -1) {
+                return;
+            } else if (stage === -2) { // Wilted plant
+                const wiltedTrunk = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.2, 0.8, 8), new THREE.MeshLambertMaterial({ color: 0x472e1f }));
+                wiltedTrunk.position.y = 0.4;
+                const leaves = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), new THREE.MeshLambertMaterial({ color: 0x8B4513 }));
+                leaves.position.y = 0.8;
+                leaves.rotation.z = Math.PI / 4;
+                
+                const wiltedPlantGroup = new THREE.Group();
+                wiltedPlantGroup.name = 'tree';
+                wiltedPlantGroup.add(wiltedTrunk, leaves);
+                plotMeshes[index].add(wiltedPlantGroup);
+                return;
+            }
+            
+            const treeGroup = new THREE.Group();
+            treeGroup.name = 'tree';
+
+            const trunkGeometry = new THREE.CylinderGeometry(0.1, 0.2, 1, 8);
+            const trunkMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+            const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+            trunk.position.y = 0.5;
+            treeGroup.add(trunk);
+            
+            let leaves = null;
+            if (stage === 0) {
+                leaves = new THREE.Mesh(new THREE.DodecahedronGeometry(0.2), new THREE.MeshLambertMaterial({ color: 0x22c55e }));
+                leaves.position.y = 1;
+            } else if (stage === 1) {
+                leaves = new THREE.Mesh(new THREE.IcosahedronGeometry(0.4), new THREE.MeshLambertMaterial({ color: 0x22c55e }));
+                leaves.position.y = 1.2;
+            } else if (stage === 2) {
+                leaves = new THREE.Mesh(new THREE.SphereGeometry(0.6, 16, 16), new THREE.MeshLambertMaterial({ color: 0x22c55e }));
+                leaves.position.y = 1.4;
+            } else if (stage === 3) {
+                leaves = new THREE.Mesh(new THREE.SphereGeometry(0.8, 16, 16), new THREE.MeshLambertMaterial({ color: 0x22c55e }));
+                leaves.position.y = 1.6;
+                
+                const fruitGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+                const fruitMaterial = new THREE.MeshLambertMaterial({ color: 0xFF0000 });
+                for(let i = 0; i < 5; i++) {
+                    const fruit = new THREE.Mesh(fruitGeometry, fruitMaterial);
+                    const angle = Math.random() * Math.PI * 2;
+                    const radius = Math.random() * 0.5 + 0.3;
+                    fruit.position.set(Math.cos(angle) * radius, 1.5, Math.sin(angle) * radius);
+                    treeGroup.add(fruit);
+                }
+            }
+            if (leaves) {
+                treeGroup.add(leaves);
+            }
+            plotMeshes[index].add(treeGroup);
+        };
+
+        const updatePlotColor = (index) => {
+            if (!plotMeshes[index]) return;
+            const plot = farmData[index];
+            let color;
+            if (index === activePlotIndex) {
+                color = 0xFFD700; // Bright gold for selection
+            } else if (plot.plotState === 'empty') {
+                color = 0x5C4033; // Darker brown for empty
+            } else if (plot.plotState === 'planted' || plot.plotState === 'growing') {
+                color = 0x8B5E3C; // Lighter brown for planted
+            } else if (plot.plotState === 'watered') {
+                color = 0x3B82F6; // Blue for watered
+            } else if (plot.plotState === 'fertilized') {
+                color = 0x22c55e; // Green for fertilized
+            } else if (plot.plotState === 'ready') {
+                color = 0xFFA500; // Orange for ready to harvest
+            } else if (plot.plotState === 'wilted') {
+                color = 0x6B4226; // Dark brown for wilted
+            }
+            plotMeshes[index].material.color.setHex(color);
+        };
+
+        const selectPlot = (index) => {
+            if (activePlotIndex !== -1) {
+                updatePlotColor(activePlotIndex);
+            }
+            activePlotIndex = index;
+            updatePlotColor(activePlotIndex);
+            updateFarmButtons();
+        };
+        
+        const updateFarmDisplay = () => {
+            if (farmScoreDisplay) farmScoreDisplay.textContent = `${score}`;
+            if (compostCountFarmDisplay) compostCountFarmDisplay.textContent = compost;
+            if (waterCountFarmDisplay) waterCountFarmDisplay.textContent = water;
+            if (seedCountFarmDisplay) seedCountFarmDisplay.textContent = seeds;
+            farmData.forEach((plot, index) => {
+                if (plotMeshes[index]) {
+                    updateTreeModel(index);
+                    updatePlotColor(index);
+                }
+            });
+        };
+
+        const updateFarmButtons = () => {
+            const plotSelected = activePlotIndex !== -1;
+            
+            if (!plotSelected) {
+                if (plantBtn) plantBtn.disabled = true;
+                if (waterBtn) waterBtn.disabled = true;
+                if (fertilizeBtn) fertilizeBtn.disabled = true;
+                if (harvestBtn) harvestBtn.disabled = true;
+            } else {
+                const plot = farmData[activePlotIndex];
+                if (plantBtn) plantBtn.disabled = seeds <= 0 || (plot.plotState !== 'empty' && plot.plotState !== 'wilted');
+                if (waterBtn) waterBtn.disabled = water <= 0 || plot.plotState === 'empty' || plot.plotState === 'wilted' || plot.plotState === 'ready';
+                if (fertilizeBtn) fertilizeBtn.disabled = compost <= 0 || (plot.plotState !== 'watered' && plot.plotState !== 'growing');
+                if (harvestBtn) harvestBtn.disabled = plot.plotState !== 'ready' && plot.plotState !== 'wilted';
+            }
+            
+            if (plantBtn) plantBtn.classList.toggle('disabled', plantBtn.disabled);
+            if (waterBtn) waterBtn.classList.toggle('disabled', waterBtn.disabled);
+            if (fertilizeBtn) fertilizeBtn.classList.toggle('disabled', fertilizeBtn.disabled);
+            if (harvestBtn) harvestBtn.classList.toggle('disabled', harvestBtn.disabled);
+        };
+        
+        const interactWithPlot = (action) => {
+            if (activePlotIndex === -1) return;
+            const plot = farmData[activePlotIndex];
+            const now = Date.now();
+
+            if (action === 'plant' && seeds > 0 && (plot.plotState === 'empty' || plot.plotState === 'wilted')) {
+                seeds--;
+                plot.stage = 0;
+                plot.plotState = 'growing';
+                plot.lastWateredTime = now;
+                plot.lastGrowthTime = now;
+                missionState.seedsPlanted++;
+            } else if (action === 'water' && water > 0 && (plot.plotState === 'growing' || plot.plotState === 'planted')) {
+                water--;
+                plot.plotState = 'watered';
+                plot.lastWateredTime = now;
+            } else if (action === 'fertilize' && compost > 0 && (plot.plotState === 'growing' || plot.plotState === 'watered')) {
+                compost--;
+                plot.plotState = 'fertilized';
+            } else if (action === 'harvest') {
+                if (plot.plotState === 'ready') {
+                    score += 100;
+                    missionState.treesHarvested++;
+                    plot.stage = -1;
+                    plot.plotState = 'empty';
+                    plot.lastGrowthTime = null;
+                    plot.lastWateredTime = null;
+                    activePlotIndex = -1;
+                } else if (plot.plotState === 'wilted') {
+                    compost += 1; // Add compost for cleaning up wilted plant
+                    plot.stage = -1;
+                    plot.plotState = 'empty';
+                    plot.lastGrowthTime = null;
+                    plot.lastWateredTime = null;
+                    activePlotIndex = -1;
+                }
+            }
+            updateFarmDisplay();
+            updateFarmButtons();
+            checkMissionProgress();
+        };
+
+        // Well Mini-Game Logic
+        let wellGameScene, wellGameCamera, wellGameRenderer;
+        let well, wellRoof, wellCrank, wellRope, wellBucket, wellWaterPlane, wellAnimationId;
+        let isWellMovingUp = false;
+        const bucketSpeed = 0.15;
+        const wellGoalHeight = 0.5;
+        const wellWaterLevel = -0.4;
+        let wellGameRunning = false;
+        let waterScoreWell = 0;
+        const wellWaterScoreDisplay = document.getElementById('well-water-score');
+
+        const startWellMiniGame = () => {
+            const container = document.getElementById('well-game-container');
+            
+            if (!wellGameRenderer) {
+                wellGameScene = new THREE.Scene();
+                wellGameCamera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+                wellGameCamera.position.set(0, 1, 5); 
+                wellGameCamera.lookAt(0, 0, 0);
+
+                wellGameRenderer = new THREE.WebGLRenderer({ antialias: true });
+                if (container) {
+                    wellGameRenderer.setSize(container.clientWidth, container.clientHeight);
+                    container.appendChild(wellGameRenderer.domElement);
+                }
+
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+                wellGameScene.add(ambientLight);
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+                directionalLight.position.set(5, 10, 7);
+                wellGameScene.add(directionalLight);
+
+                const stoneMaterial = new THREE.MeshStandardMaterial({ color: 0x7f7f7f });
+                const woodMaterial = new THREE.MeshStandardMaterial({ color: 0x8b4513 });
+                const groundRingMaterial = new THREE.MeshStandardMaterial({ color: 0x18453B });
+                const ropeMaterial = new THREE.MeshStandardMaterial({ color: 0x5c4033 });
+                const bucketMaterial = new THREE.MeshStandardMaterial({ color: 0xc0c0c0 });
+                const waterMaterial = new THREE.MeshStandardMaterial({ color: 0x4299e1, transparent: true, opacity: 0.6 });
+                
+                const groundGeometry = new THREE.PlaneGeometry(20, 20);
+                const ground = new THREE.Mesh(groundGeometry, new THREE.MeshStandardMaterial({ color: 0x228B22 }));
+                ground.rotation.x = -Math.PI / 2;
+                ground.position.y = -1.05;
+                wellGameScene.add(ground);
+                
+                const wellGeometry = new THREE.CylinderGeometry(2.5, 2.5, 1, 32, 1, true);
+                well = new THREE.Mesh(wellGeometry, stoneMaterial);
+                well.position.y = -0.5;
+                wellGameScene.add(well);
+                
+                const mossGeometry = new THREE.TorusGeometry(2.5, 0.1, 16, 100);
+                const moss = new THREE.Mesh(mossGeometry, groundRingMaterial);
+                moss.position.y = 0.05;
+                moss.rotation.x = -Math.PI / 2;
+                wellGameScene.add(moss);
+                
+                const postGeometry = new THREE.BoxGeometry(0.2, 3, 0.2);
+                const post1 = new THREE.Mesh(postGeometry, woodMaterial);
+                post1.position.set(2, 1, 0);
+                wellGameScene.add(post1);
+                const post2 = new THREE.Mesh(postGeometry, woodMaterial);
+                post2.position.set(-2, 1, 0);
+                wellGameScene.add(post2);
+
+                const roofGeometry = new THREE.BoxGeometry(4.5, 0.1, 2.5);
+                wellRoof = new THREE.Mesh(roofGeometry, woodMaterial);
+                wellRoof.position.set(0, 2.5, 0);
+                wellGameScene.add(wellRoof);
+
+                const crankSupportGeometry = new THREE.CylinderGeometry(0.1, 0.1, 4.5, 16);
+                const crankSupport = new THREE.Mesh(crankSupportGeometry, woodMaterial);
+                crankSupport.rotation.z = Math.PI / 2;
+                crankSupport.position.set(0, 1.5, 0);
+                wellGameScene.add(crankSupport);
+
+                const crankHandleGeometry = new THREE.BoxGeometry(1.5, 0.1, 0.1);
+                wellCrank = new THREE.Mesh(crankHandleGeometry, woodMaterial);
+                wellCrank.rotation.z = Math.PI / 2;
+                wellCrank.position.set(-2.5, 1.5, 0);
+                wellGameScene.add(wellCrank);
+                
+                const ropeGeometry = new THREE.CylinderGeometry(0.05, 0.05, 1, 8);
+                wellRope = new THREE.Mesh(ropeGeometry, ropeMaterial);
+                wellGameScene.add(wellRope);
+
+                const bucketGeometry = new THREE.CylinderGeometry(0.5, 0.4, 0.7, 16);
+                wellBucket = new THREE.Mesh(bucketGeometry, bucketMaterial);
+                wellBucket.position.y = -5;
+                wellGameScene.add(wellBucket);
+
+                const waterGeometry = new THREE.CircleGeometry(2.3, 32);
+                wellWaterPlane = new THREE.Mesh(waterGeometry, waterMaterial);
+                wellWaterPlane.position.y = wellWaterLevel;
+                wellWaterPlane.rotation.x = -Math.PI / 2;
+                wellGameScene.add(wellWaterPlane);
+            
+                if (wellGameRenderer) {
+                    wellGameRenderer.domElement.addEventListener('mousedown', onWellMouseDown, false);
+                    wellGameRenderer.domElement.addEventListener('mouseup', onWellMouseUp, false);
+                    wellGameRenderer.domElement.addEventListener('touchstart', onWellTouchStart, false);
+                    wellGameRenderer.domElement.addEventListener('touchend', onWellTouchEnd, false);
+                }
+                window.addEventListener('resize', onWellGameResize, false);
+            } else {
+                if (container) {
+                    wellGameRenderer.setSize(container.clientWidth, container.clientHeight);
+                    wellGameCamera.aspect = container.clientWidth / container.clientHeight;
+                    wellGameCamera.updateProjectionMatrix();
+                }
+            }
+
+            waterScoreWell = water;
+            if (wellWaterScoreDisplay) wellWaterScoreDisplay.textContent = waterScoreWell;
+            
+            wellGameRunning = true;
+            animateWellGame();
+        };
+        
+        const endWellMiniGame = () => {
+            wellGameRunning = false;
+            if (wellAnimationId) cancelAnimationFrame(wellAnimationId);
+            hideModal('well-game-3d-modal');
+            updateFarmDisplay();
+            saveGame();
+        };
+
+        function onWellGameResize() {
+            if (wellGameRenderer) {
+                const container = document.getElementById('well-game-container');
+                if (container) {
+                    wellGameRenderer.setSize(container.clientWidth, container.clientHeight);
+                    wellGameCamera.aspect = container.clientWidth / container.clientHeight;
+                    wellGameCamera.updateProjectionMatrix();
+                }
+            }
+        }
+
+        function onWellMouseDown() { isWellMovingUp = true; }
+        function onWellMouseUp() { isWellMovingUp = false; }
+        function onWellTouchStart() { isWellMovingUp = true; }
+        function onWellTouchEnd() { isWellMovingUp = false; }
+
+        function animateWellGame() {
+            if (!wellGameRunning) return;
+            wellAnimationId = requestAnimationFrame(animateWellGame);
+            
+            if (isWellMovingUp) {
+                wellBucket.position.y = Math.min(wellBucket.position.y + bucketSpeed, wellGoalHeight);
+                const newRopeLength = 1.5 - wellBucket.position.y;
+                wellRope.position.y = (1.5 + wellBucket.position.y) / 2;
+                wellRope.scale.y = newRopeLength;
+                wellCrank.rotation.x -= 0.05;
+            } else {
+                wellBucket.position.y = Math.max(wellBucket.position.y - bucketSpeed / 2, -5);
+                const newRopeLength = 1.5 - wellBucket.position.y;
+                wellRope.position.y = (1.5 + wellBucket.position.y) / 2;
+                wellRope.scale.y = newRopeLength;
+                wellCrank.rotation.x += 0.025;
+            }
+
+            if (wellBucket.position.y >= wellGoalHeight) {
+                score += 5;
+                water += 1;
+                waterScoreWell += 1;
+                if (wellWaterScoreDisplay) wellWaterScoreDisplay.textContent = waterScoreWell;
+                missionState.waterCollected++;
+                if (missionsModal && !missionsModal.classList.contains('hidden')) {
+                  checkMissionProgress();
+                }
+                wellBucket.position.y = -5;
+            }
+
+            if (wellGameRenderer && wellGameScene && wellGameCamera) {
+                wellGameRenderer.render(wellGameScene, wellGameCamera);
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            const startGameBtn = document.getElementById('start-game-btn');
+            if (startGameBtn) {
+                startGameBtn.addEventListener('click', () => {
+                    resetGame();
+                    showScreen('farm-game');
+                });
+            }
+            
+            const continueGameBtn = document.getElementById('continue-game-btn');
+            if (continueGameBtn) {
+                continueGameBtn.addEventListener('click', () => {
+                    loadGame();
+                    showScreen('farm-game');
+                });
+            }
+
+            const aboutBtn = document.getElementById('about-btn');
+            if (aboutBtn) {
+                aboutBtn.addEventListener('click', () => showScreen('about'));
+            }
+            
+            const instructionsBtn = document.getElementById('instructions-btn');
+            if (instructionsBtn) {
+                instructionsBtn.addEventListener('click', () => showScreen('instructions'));
+            }
+
+            const recyclingBackBtn = document.getElementById('recycling-back-btn');
+            if (recyclingBackBtn) {
+                recyclingBackBtn.addEventListener('click', () => {
+                    gameRunning = false;
+                    if (currentItemElement) {
+                        currentItemElement.remove();
+                        currentItemElement = null;
+                    }
+                    saveGame();
+                    showScreen('farm-game');
+                });
+            }
+            
+            const farmBackBtn = document.getElementById('farm-back-btn-icon');
+            if (farmBackBtn) {
+                farmBackBtn.addEventListener('click', () => {
+                    saveGame();
+                    showScreen('main-menu');
+                });
+            }
+
+            const aboutBackBtn = document.getElementById('about-back-btn');
+            if (aboutBackBtn) {
+                aboutBackBtn.addEventListener('click', () => showScreen('main-menu'));
+            }
+            
+            const instructionsBackBtn = document.getElementById('instructions-back-btn');
+            if (instructionsBackBtn) {
+                instructionsBackBtn.addEventListener('click', () => showScreen('main-menu'));
+            }
+
+            const gameOverRetryBtn = document.getElementById('game-over-retry-btn');
+            if (gameOverRetryBtn) {
+                gameOverRetryBtn.addEventListener('click', () => { hideModal('game-over-modal'); resetGame(); });
+            }
+
+            const gameOverMenuBtn = document.getElementById('game-over-menu-btn');
+            if (gameOverMenuBtn) {
+                gameOverMenuBtn.addEventListener('click', () => { hideModal('game-over-modal'); saveGame(); showScreen('main-menu'); });
+            }
+            
+            const buySeedBtn = document.getElementById('buy-seed-btn');
+            if (buySeedBtn) {
+                buySeedBtn.addEventListener('click', () => buyItem('benih'));
+            }
+
+            const marketplaceCloseBtn = document.getElementById('marketplace-close-btn');
+            if (marketplaceCloseBtn) {
+                marketplaceCloseBtn.addEventListener('click', () => { hideModal('marketplace-modal'); saveGame(); showScreen('farm-game'); });
+            }
+            
+            const warehouseCloseBtn = document.getElementById('warehouse-close-btn');
+            if (warehouseCloseBtn) {
+                warehouseCloseBtn.addEventListener('click', () => hideModal('warehouse-modal'));
+            }
+
+            const wellBackBtn = document.getElementById('well-back-btn');
+            if (wellBackBtn) {
+                wellBackBtn.addEventListener('click', endWellMiniGame);
+            }
+
+            const recyclingCenterCloseBtn = document.getElementById('recycling-center-close-btn');
+            if (recyclingCenterCloseBtn) {
+                recyclingCenterCloseBtn.addEventListener('click', () => hideModal('recycling-center-modal'));
+            }
+
+            const processAnorganikBtn = document.getElementById('process-anorganik-btn');
+            if (processAnorganikBtn) {
+                processAnorganikBtn.addEventListener('click', () => processItems('anorganik'));
+            }
+
+            const processKertasBtn = document.getElementById('process-kertas-btn');
+            if (processKertasBtn) {
+                processKertasBtn.addEventListener('click', () => processItems('kertas'));
+            }
+
+            const missionsCloseBtn = document.getElementById('missions-close-btn');
+            if (missionsCloseBtn) {
+                missionsCloseBtn.addEventListener('click', () => hideModal('missions-modal'));
+            }
+
+            const encyclopediaCloseBtn = document.getElementById('encyclopedia-close-btn');
+            if (encyclopediaCloseBtn) {
+                encyclopediaCloseBtn.addEventListener('click', () => hideModal('encyclopedia-modal'));
+            }
+            
+            const missionsModalEl = document.getElementById('missions-modal');
+            if (missionsModalEl) {
+                missionsModalEl.addEventListener('click', (e) => {
+                    if(e.target.id === 'complete-mission-btn') {
+                        completeMission();
+                    }
+                });
+            }
+            
+            if(plantBtn) plantBtn.addEventListener('click', () => interactWithPlot('plant'));
+            if(waterBtn) waterBtn.addEventListener('click', () => interactWithPlot('water'));
+            if(fertilizeBtn) fertilizeBtn.addEventListener('click', () => interactWithPlot('fertilize'));
+            if(harvestBtn) harvestBtn.addEventListener('click', () => interactWithPlot('harvest'));
+
+            showScreen('main-menu');
+            updateMainMenu();
+        });
+
+        window.onload = function() {
+            window.addEventListener('resize', () => {
+                if (renderer) {
+                    const canvas = document.getElementById('farm-canvas');
+                    renderer.setSize(canvas.offsetWidth, canvas.offsetHeight);
+                    camera.aspect = canvas.offsetWidth / canvas.offsetHeight;
+                    camera.updateProjectionMatrix();
+                }
+            });
+        };
+              if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(registration => {
+              console.log('Service Worker berhasil didaftarkan!');
+            })
+            .catch(err => {
+              console.log('Pendaftaran Service Worker gagal: ', err);
+            });
+        });
+      }
+    </script>
+</body>
+</html>
